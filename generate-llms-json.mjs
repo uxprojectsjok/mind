@@ -269,9 +269,10 @@ function buildMindIndex(souls) {
     _souls:  tuples,
 
     _hint: {
-      query:  'To filter souls: use y_tags[tag] for O(1) tag lookup, z_status.on/off for O(1) status filter, binary search x_price.asc for price range (parallel array x_price.idx maps to _souls index), binary search z_anchors.asc for anchor range. Intersect result sets. Read only matching _souls entries. Never scan all _souls linearly.',
-      decode: 'Each _souls entry is an array ordered by _keys. The tags field contains integer indices into _tags. status 1=online 0=offline. anchors=on-chain anchor count (trust signal).',
-      update: 'File regenerated every 10 minutes. Cache with max-age=600.',
+      query:         'To filter souls: use y_tags[tag] for O(1) tag lookup, z_status.on/off for O(1) status filter, binary search x_price.asc for price range (parallel array x_price.idx maps to _souls index), binary search z_anchors.asc for anchor range. Intersect result sets. Read only matching _souls entries. Never scan all _souls linearly.',
+      query_example: "tag='dev' AND price<0.01: a=new Set(y_tags['dev']); b=new Set(z_status.on); c=new Set([...x_price.free, ...x_price.idx.filter((_,i)=>x_price.asc[i]<0.01)]); result=[...a].filter(i=>b.has(i)&&c.has(i)); souls=result.map(i=>Object.fromEntries(_keys.map((k,j)=>[k,_souls[i][j]])));",
+      decode:        'Each _souls entry is an array ordered by _keys. The tags field contains integer indices into _tags. status 1=online 0=offline. anchors=on-chain anchor count (trust signal).',
+      update:        'File regenerated every 10 minutes. Cache with max-age=600.',
     },
 
     x_price: {
