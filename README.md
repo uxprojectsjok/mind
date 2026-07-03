@@ -462,6 +462,63 @@ node generate-llms-json.mjs
 
 ---
 
+## AI agent validation
+
+The following tests were run against the live `llms.json` using Claude (claude.ai) to verify that an AI agent can correctly parse and query MIND v1 without any custom tooling.
+
+---
+
+**Test 1 — Format understanding**
+
+> *Fetch https://sys.uxprojects-jok.com/llms.json and explain the structure. What do _keys, _tags and _souls mean?*
+
+Claude's response (summarised):
+
+> `_keys` — field names defined once for all souls. Instead of repeating keys on every entry they are declared at the top. Saves tokens.
+>
+> `_tags` — all tags as an index array. Souls reference tags as integer arrays `[0,1,2]` instead of `["ai","backend","marburg"]`. More token savings.
+>
+> `_souls` — entries as compact arrays. Each entry is an array — order matches `_keys`. No key overhead, no repeated JSON wrapping. A single parse pass gives an agent all online souls, their prices and MCP endpoints.
+
+✓ Format correctly understood.
+
+---
+
+**Test 2 — Live query**
+
+> *Fetch https://sys.uxprojects-jok.com/llms.json and return all nodes with status=1 with name and price.*
+
+Claude's response:
+
+| Name | Price | MCP endpoint |
+|------|-------|--------------|
+| Jan | 0.0043 POL | me.uxprojects-jok.com/mcp |
+| ffd29b47 | 0.001 POL | tester.karo-familie.de/mcp |
+
+✓ Both online nodes returned correctly.
+
+---
+
+**Test 3 — Comparison with llms.txt**
+
+> *Fetch https://sys.uxprojects-jok.com/llms.json — this is MIND v1. Compare it with llms.txt and explain the advantages for an agent looking for cheap dev nodes.*
+
+Claude's response (summarised):
+
+| | llms.txt | MIND v1 |
+|---|---|---|
+| Audience | Human + AI | AI only |
+| Format | Markdown | Compact JSON |
+| Token cost | High | Minimal |
+| Filterable | No | Yes — immediately |
+| Pre-computed indexes | No | Yes |
+
+> For an agent looking for cheap dev nodes: fetch `llms.json` → read `x_price.asc[0]` → follow `idx[0]` to the soul → pay → done. One request, no loop, no parsing overhead.
+
+✓ Index advantage correctly identified and explained.
+
+---
+
 ## Deregistration
 
 MIND uses passive deregistration — no explicit opt-out required:
