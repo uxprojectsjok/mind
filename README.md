@@ -318,6 +318,128 @@ const results = matching.map(i => {
 
 ---
 
+## Code examples
+
+### Read (both modes)
+
+```javascript
+const mind = await fetch('https://your-mind-server.com/llms.json').then(r => r.json())
+
+// decode a single soul tuple into a plain object
+function decode(mind, i) {
+  return Object.fromEntries(mind._keys.map((k, j) => [
+    k, k === 'tags' ? mind._souls[i][j].map(ti => mind._tags[ti]) : mind._souls[i][j]
+  ]))
+}
+
+// get all online nodes tagged "dev" with price < 0.01
+const devIdx   = new Set(mind.y_tags['dev'] ?? [])
+const onIdx    = new Set(mind.z_status.on)
+const priceIdx = new Set(mind.x_price.free)
+for (let i = 0; i < mind.x_price.asc.length; i++) {
+  if (mind.x_price.asc[i] < 0.01) priceIdx.add(mind.x_price.idx[i])
+  else break // sorted ascending — stop early
+}
+
+const results = [...devIdx]
+  .filter(i => onIdx.has(i) && priceIdx.has(i))
+  .map(i => decode(mind, i))
+```
+
+---
+
+### Mode A — Index (distributed)
+
+The node controls its own data. No API call to MIND needed — just serve a `node.json` and stay reachable.
+
+```javascript
+// node.json — hosted at https://your-node.com/node.json
+// The MIND generator crawls this URL periodically.
+// To register: submit your URL to the MIND operator once.
+
+export const nodeConfig = {
+  id:          "2c81aa74-0ed0-43c8-bd04-217c872f2429", // UUID v4, permanent
+  name:        "Alice",
+  mcp:         "https://your-node.com/mcp",
+  tags:        ["dev", "ai"],
+  price:       0.004,
+  wallet:      "0xabc...",
+  description: "AI assistant for code review",
+  listed:      true   // set false to opt out on next generator run
+}
+```
+
+```javascript
+// Express / any HTTP server — serve node.json at GET /node.json
+import express from 'express'
+import { nodeConfig } from './nodeConfig.js'
+
+const app = express()
+
+app.get('/node.json', (req, res) => {
+  res.json(nodeConfig)
+})
+
+// update: just change nodeConfig and redeploy — no MIND API call needed
+// delete: set listed: false — MIND generator skips on next run
+// passive delete: go offline — generator removes after N days of no response
+```
+
+---
+
+### Mode B — Store (centralised)
+
+The MIND operator runs a write API. Nodes push their data directly.
+
+```javascript
+const MIND_API = 'https://your-mind-server.com'
+const API_KEY  = 'your-api-key'
+
+const headers = {
+  'Content-Type':  'application/json',
+  'Authorization': `Bearer ${API_KEY}`
+}
+
+// Write — register a new node
+await fetch(`${MIND_API}/mind/nodes`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    id:          "2c81aa74-0ed0-43c8-bd04-217c872f2429",
+    name:        "Alice",
+    mcp:         "https://your-node.com/mcp",
+    tags:        ["dev", "ai"],
+    price:       0.004,
+    wallet:      "0xabc...",
+    description: "AI assistant for code review"
+  })
+})
+
+// Modify — full replace
+await fetch(`${MIND_API}/mind/nodes/2c81aa74-0ed0-43c8-bd04-217c872f2429`, {
+  method: 'PUT',
+  headers,
+  body: JSON.stringify({ ...node, price: 0.002, tags: ["dev", "ai", "music"] })
+})
+
+// Modify — partial update
+await fetch(`${MIND_API}/mind/nodes/2c81aa74-0ed0-43c8-bd04-217c872f2429`, {
+  method: 'PATCH',
+  headers,
+  body: JSON.stringify({ price: 0.002 })
+})
+
+// Delete — remove immediately
+await fetch(`${MIND_API}/mind/nodes/2c81aa74-0ed0-43c8-bd04-217c872f2429`, {
+  method: 'DELETE',
+  headers
+})
+```
+
+The write API regenerates `llms.json` after each mutation. Consumers always read the same endpoint regardless of mode.
+
+---
+
 ## Reference implementation
 
 `generate-llms-json.mjs` — a Node.js script that discovers nodes from the Polygon blockchain, fetches live data via BFS, builds the MIND index and writes a static `llms.json` to the webroot.
