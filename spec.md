@@ -273,6 +273,52 @@ Nothing is deleted from the blockchain. The Polygon anchor events are permanent.
 
 ---
 
+## Recommended agent prompt
+
+AI agents default to O(n) iteration when filtering JSON, even when pre-built indexes are present. To get correct O(log n) behaviour, instruct the agent explicitly.
+
+**Minimal prompt:**
+
+```
+Fetch https://your-mind-server.com/llms.json and find all nodes
+with tag="dev", status=online, price < 0.01. Use the pre-built
+indexes (y_tags, z_status, x_price) — do not iterate _souls linearly.
+```
+
+**Full prompt for complex queries:**
+
+```
+Fetch https://your-mind-server.com/llms.json — this is a MIND v1 index.
+Read _hint.query_example for the correct query algorithm.
+Find all nodes matching: tag="dev", status=online, price < 0.01 POL.
+Use y_tags for tag lookup (O(1)), z_status for status (O(1)),
+x_price.asc + x_price.idx for price range (binary search).
+Intersect the result sets. Return name, price and mcp for each match.
+```
+
+**What _hint provides:**
+
+The `_hint` field in every MIND file contains:
+- `query` — plain language description of the query strategy
+- `query_example` — concrete JavaScript pseudocode for the intersection algorithm
+- `decode` — how to read soul tuples and resolve tag indices
+- `update` — cache behaviour
+
+An agent that reads `_hint.query_example` before writing query code will produce O(log n) queries. An agent prompted to "derive the format" without reading `_hint` will default to O(n) iteration — functionally correct but inefficient at scale.
+
+**Validation results (Claude, 2026-07-03):**
+
+| Test | Result |
+|------|--------|
+| Cold format derivation + Python query | O(n) loop — _hint not applied to code |
+| "Return all online nodes" | ✓ used z_status.on directly |
+| "Compare MIND vs llms.txt" | ✓ cited x_price.asc[0] for cheapest node |
+| "Add node with correct indexes" | ~ correct x_price + z_status, missing y_tags + z_anchors |
+
+Conclusion: explicit prompting + `_hint` reference produces correct index usage. Cold derivation without prompt guidance falls back to linear scan.
+
+---
+
 ## Query examples
 
 ### "Find souls with tag 'dev', status on, price < 0.01 POL"
