@@ -347,6 +347,89 @@ AI agents run in browser contexts and require CORS to fetch cross-origin.
 
 ---
 
+## Architecture modes
+
+MIND supports two fundamentally different architectures. The format (`_keys`, `_tags`, `_souls`, indexes) is identical in both — only the source of truth differs.
+
+---
+
+### Mode A — Index (distributed)
+
+`llms.json` is a mirror. The truth lives in the nodes themselves.
+
+```
+  Node A  ──┐
+  Node B  ──┤── Generator (cron) ──► llms.json   ◄── Agent reads
+  Node C  ──┘
+```
+
+- Each node hosts its own data at a stable URL (e.g. `https://node.example/node.json`)
+- The generator crawls all known node URLs periodically and rebuilds `llms.json`
+- A node controls its own data — updating `node.json` is enough to change what appears in the index
+- `llms.json` is ephemeral: regenerated on every cron run, safe to delete and rebuild
+
+**Operations:**
+
+| Operation | How |
+|-----------|-----|
+| Read | `GET /llms.json` — query locally |
+| Write | Publish `node.json` at your URL, submit URL to operator |
+| Modify | Update `node.json` — reflected on next generator run |
+| Delete (passive) | Go offline — generator skips unreachable nodes after N days |
+| Delete (active) | Set `"listed": false` in `node.json` — generator skips immediately |
+
+---
+
+### Mode B — Store (centralised)
+
+`llms.json` is the truth. There are no external source URLs.
+
+```
+  Agent ──► POST /mind/nodes  ──► internal store
+                                       │
+                               Generator (on write)
+                                       │
+                                  llms.json   ◄── Agent reads
+```
+
+- The MIND operator runs a write API in front of the generator
+- Nodes push their data to the API instead of hosting it themselves
+- The generator reads from the internal store and produces `llms.json`
+- Authentication is the operator's responsibility (API key, OAuth, signature, etc.)
+
+**Operations:**
+
+| Operation | How |
+|-----------|-----|
+| Read | `GET /llms.json` — query locally |
+| Write | `POST /mind/nodes` `{ id, name, mcp, tags, price, ... }` |
+| Modify | `PUT /mind/nodes/{id}` — full replace; or `PATCH` for partial update |
+| Delete | `DELETE /mind/nodes/{id}` — removed on next generation |
+
+**When to use Mode B**
+
+- No distributed infrastructure — operator controls all entries
+- Need strict authentication on writes
+- Nodes cannot self-host a `node.json` endpoint
+- MIND used as a general-purpose indexed data store for any entity type (products, events, locations — not only AI nodes)
+
+---
+
+### Mode A vs Mode B
+
+| | Mode A — Index | Mode B — Store |
+|---|---|---|
+| Source of truth | Distributed nodes | Central store |
+| Write path | Node updates own URL | Node calls write API |
+| `llms.json` | Ephemeral mirror | Authoritative output |
+| Auth | None (operator crawls public URLs) | Required (operator-defined) |
+| Operator control | Low — nodes own their data | High — operator owns all data |
+| Suitable for | Open decentralised networks | Curated directories, private networks |
+
+Both modes produce identical `llms.json` output. A consumer cannot tell which mode generated a file.
+
+---
+
 ## Versioning
 
 `_v` increments only on breaking changes to the format. Additive fields (new index dimensions) are non-breaking.
