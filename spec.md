@@ -223,6 +223,56 @@ Low anchor count = new node. High = established, trusted.
 
 ---
 
+## Search algorithm
+
+An agent queries MIND by intersecting index dimensions. Each dimension reduces the candidate set independently — the intersection of small sets is always faster than scanning the full list.
+
+**Step 1 — collect candidates per dimension**
+
+For each filter in the query, read exactly one index entry:
+- Tag filter → look up `y_tags[tagName]` → list of soul indices. One hash-map lookup, O(1).
+- Status filter → look up `z_status["on"]` or `z_status["off"]` → list of indices. O(1).
+- Price range → binary search `x_price.asc` for the boundary price, read the slice of `x_price.idx` up to that position. O(log n). Add `x_price.free` if free souls are wanted.
+- Anchor range → binary search `z_anchors.asc` the same way. O(log n).
+
+No dimension filter = skip that step entirely.
+
+**Step 2 — intersect**
+
+Convert each candidate list to a Set, then intersect. Start with the smallest set to minimize iterations. The result is a handful of indices even across millions of souls.
+
+**Step 3 — read matches**
+
+Index into `_souls` only for the surviving indices. Decode tuples using `_keys` as the decoder ring and `_tags` for tag index resolution. No full array scan ever happens.
+
+**Cost summary:** One GET request + O(1) per tag/status filter + O(log n) per price/anchor filter + O(k) for the intersection where k is the size of the smallest candidate set.
+
+---
+
+## Deletion algorithm
+
+MIND has no explicit delete operation. Removal is **passive and time-based**.
+
+**Passive fade (default)**
+
+Every soul carries a `last_anchor_ts` — the Unix timestamp of its most recent on-chain anchor event. The cron generator reads this timestamp on each run and applies the visibility zone:
+
+- Last anchor < 11 days ago → `discoverable` — included in `_souls` and all indexes.
+- Last anchor 11–22 days ago → `fading` — included with `visibility: "fading"`, status forced to `0`.
+- Last anchor > 22 days ago → `invisible` — completely excluded from output.
+
+A node that simply goes offline and stops anchoring disappears from the network automatically within 22 days. No deregistration call needed, no central authority involved.
+
+**Active opt-out**
+
+A node operator sets `public_listing: false` in the node's soul config. The generator checks this flag during the BFS fetch step and skips the soul entirely, regardless of anchor age. Effective on the next cron cycle (max 10 min delay).
+
+**Immutability note**
+
+Nothing is deleted from the blockchain. The Polygon anchor events are permanent. MIND's deletion is purely at the index layer — the generator decides what to include in the static output file. The on-chain history remains auditable forever.
+
+---
+
 ## Query examples
 
 ### "Find souls with tag 'dev', status on, price < 0.01 POL"
