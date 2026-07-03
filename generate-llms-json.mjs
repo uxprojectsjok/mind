@@ -260,12 +260,19 @@ function buildMindIndex(souls) {
   anchorEntries.sort((a, b) => a.anchors - b.anchors)
 
   return {
-    _v:     1,
-    _spec:  'https://sys.uxprojects-jok.com/mind',
-    _ts:    Math.floor(Date.now() / 1000),
-    _keys:  KEYS,
-    _tags:  TAG_LIST,
-    _souls: tuples,
+    _v:      1,
+    _spec:   'https://sys.uxprojects-jok.com/mind',
+    _schema: 'https://raw.githubusercontent.com/uxprojectsjok/mind/main/spec.md',
+    _ts:     Math.floor(Date.now() / 1000),
+    _keys:   KEYS,
+    _tags:   TAG_LIST,
+    _souls:  tuples,
+
+    _hint: {
+      query:  'To filter souls: use y_tags[tag] for O(1) tag lookup, z_status.on/off for O(1) status filter, binary search x_price.asc for price range (parallel array x_price.idx maps to _souls index), binary search z_anchors.asc for anchor range. Intersect result sets. Read only matching _souls entries. Never scan all _souls linearly.',
+      decode: 'Each _souls entry is an array ordered by _keys. The tags field contains integer indices into _tags. status 1=online 0=offline. anchors=on-chain anchor count (trust signal).',
+      update: 'File regenerated every 10 minutes. Cache with max-age=600.',
+    },
 
     x_price: {
       free: freeBucket,
