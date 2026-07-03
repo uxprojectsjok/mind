@@ -32,6 +32,83 @@ The real gain: with MIND's tiered design, an agent downloads only the index (sma
 
 ---
 
+## Overview — 3D Index Space
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║          MIND v1 · Multi-dimensional Index for Node Discovery        ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Y (tags)
+  │
+  │  dev ──── [0, 3, 7] ──────────────────────── ●(7) ●(3)
+  │  ai  ──── [0, 1, 5] ──────────────── ●(5)         ●(0)
+  │  mus ──── [4, 6]    ────── ●(4) ●(6)
+  │  hlth ─── [2]       ── ●(2)
+  │                                                         ▲ O(1)
+  └──────────────────────────────────────────────────────── X (price)
+  ╱  free        0.001    0.01      0.1       0.5    1.0 POL
+ ╱   [1,4]        │        │         │         │      │   ▲ O(log n)
+Z                 │        │         │         │      │
+│  on  [0,3,5,7] ●         ●         ●                    ▲ O(1)
+│  off [1,2,4,6]      ●         ●         ●
+│
+└── anchors asc: [1, 3, 7, 12, 22]   ▲ O(log n)
+    idx:         [4, 1, 6,  2,  0]
+
+──────────────────────────────────────────────────────────────────────
+
+  llms.json
+  │
+  ├── _v      : 1
+  ├── _spec   : "https://sys.uxprojects-jok.com/mind"
+  ├── _ts     : 1751563686
+  │
+  ├── _keys   : ["id","name","mcp","status","anchors","tags","price","wallet",...]
+  │              └─ decoder ring — defined once, used N times
+  │
+  ├── _tags   : ["dev","ai","marburg","music","health",...]
+  │              └─ tag vocabulary — indices instead of strings in _souls
+  │
+  ├── _souls  : sorted by last_anchor_ts DESC (freshest first)
+  │   ├── [0] ["2c81aa74","Jan",  "https://me.../mcp",  1, 22, [0,2,3], 0.004, "0xabc"]
+  │   ├── [1] ["6a019abc","Till", "https://till.../mcp", 0,  3, [3],    0.001, "0xdef"]
+  │   ├── [2] ["eb10a04d","Test", "https://test.../mcp", 1,  7, [0,1],  0.010, "0xghi"]
+  │   └── ...  └── tag indices → _tags[0]="dev", _tags[2]="marburg"
+  │
+  ├── x_price ─── X axis ───────────────────────────────── O(log n)
+  │   ├── free : [1]                   ← price === 0
+  │   ├── asc  : [0.001, 0.004, 0.010] ← ascending sorted
+  │   └── idx  : [1,     0,     2    ] ← → _souls[idx]
+  │
+  ├── y_tags ──── Y axis ───────────────────────────────── O(1)
+  │   ├── "dev"    : [0, 2]            ← soul indices, anchor-count DESC
+  │   ├── "ai"     : [0, 2]
+  │   ├── "marburg": [0]
+  │   └── "music"  : [1]
+  │
+  ├── z_status ── Z axis (bucket) ─────────────────────── O(1)
+  │   ├── on  : [0, 2]
+  │   └── off : [1]
+  │
+  └── z_anchors ─ Z axis (sort) ──────────────────────── O(log n)
+      ├── asc : [3,  7,  22]
+      └── idx : [1,  2,   0]
+
+──────────────────────────────────────────────────────────────────────
+
+  QUERY: tag=dev AND status=on AND price < 0.01 POL
+
+  y_tags["dev"]  → {0, 2}          O(1)
+  z_status["on"] → {0, 2}          O(1)
+  x_price < 0.01 → binary search   O(log n)  → {0, 2}
+
+  Intersection   → {0, 2}          ← only these _souls entries read
+  Result         → Jan (#0), Test (#2)
+```
+
+---
+
 ## Format
 
 ```json

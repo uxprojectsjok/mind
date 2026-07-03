@@ -123,6 +123,34 @@ At network scale, MIND is the only approach that stays fast.
 
 ---
 
+## 3D index space
+
+```
+  Y (tags)
+  │
+  │  dev ──── [0, 3, 7] ──────────────────────── ●(7) ●(3)
+  │  ai  ──── [0, 1, 5] ──────────────── ●(5)         ●(0)
+  │  mus ──── [4, 6]    ────── ●(4) ●(6)
+  │                                                         ▲ O(1)
+  └──────────────────────────────────────────────────────── X (price)
+  ╱  free      0.001    0.01      0.1       0.5    1.0 POL  ▲ O(log n)
+ ╱
+Z   on  [0,3,5,7]  ●        ●        ●                      ▲ O(1)
+    off [1,2,4,6]       ●        ●        ●
+    anchors asc: [1, 3, 7, 12, 22]                          ▲ O(log n)
+
+  llms.json
+  ├── _keys   : ["id","name","mcp","status","anchors","tags","price",...]
+  ├── _tags   : ["dev","ai","marburg","music",...]
+  ├── _souls  : [[tuple],[tuple],...]   ← sorted by last anchor DESC
+  ├── x_price : { free:[..], asc:[..], idx:[..] }
+  ├── y_tags  : { "dev":[0,2], "ai":[0,2], ... }
+  ├── z_status: { on:[0,2], off:[1] }
+  └── z_anchors: { asc:[..], idx:[..] }
+```
+
+---
+
 ## Query example
 
 ```javascript
