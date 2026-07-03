@@ -445,6 +445,48 @@ Runs as a cron job, writes `/llms.json` to the static webroot every 10 minutes.
 
 ---
 
+## Open issues
+
+### Issue #1 — AI agents ignore pre-built indexes
+
+**Observed:** When an AI agent (Claude, GPT-4) is given a MIND file without prior knowledge of the format, it correctly parses `_keys`, `_tags` and `_souls` but defaults to O(n) iteration over `_souls` instead of using the pre-built index dimensions (`x_price`, `y_tags`, `z_status`, `z_anchors`).
+
+**Root cause:** The purpose of the index fields is not self-evident from field names alone. An agent discovering the format cold has no signal that `x_price.asc` + `x_price.idx` are a parallel binary-search pair, or that `y_tags` is an inverted index ready for O(1) lookup.
+
+**Proposed fix — `_hint` field (v1.1)**
+
+Add an optional `_hint` object to the root that describes the query strategy in plain language:
+
+```json
+"_hint": {
+  "query": "To filter souls: use y_tags[tag] for O(1) tag lookup, z_status.on/off for status, binary search x_price.asc for price range (parallel array x_price.idx maps to _souls index), binary search z_anchors.asc for anchor range. Intersect result sets. Read only matching _souls entries.",
+  "decode": "Each _souls entry is an array ordered by _keys. Tags field contains integer indices into _tags array.",
+  "update": "File regenerated every 10 minutes. Cache with max-age=600."
+}
+```
+
+This gives any agent — regardless of prior MIND knowledge — the exact query strategy in one read. The cost is minimal (~40 tokens). The benefit is correct O(log n) queries instead of O(n) fallback scans.
+
+**Status:** Proposed for v1.1. Not yet in the format.
+
+---
+
+### Issue #2 — Index structure not reconstructed correctly by agents
+
+**Observed:** When asked to add a node and return the updated file with correct indexes, Claude produced `_tags_map` (non-existent field) and omitted `y_tags`, `z_status` and `z_anchors` entirely.
+
+**Root cause:** Agents understand the data layer (_keys/_tags/_souls) intuitively but the index layer requires explicit knowledge of each dimension's structure. Without documentation loaded into context, agents invent plausible-looking but wrong field names.
+
+**Proposed fix:** The `_hint` field from Issue #1 partially addresses this. A secondary fix is a `_schema` URL pointing to this spec — giving agents a fetch target if they need to understand the full index structure before writing.
+
+```json
+"_schema": "https://raw.githubusercontent.com/uxprojectsjok/mind/main/spec.md"
+```
+
+**Status:** Proposed for v1.1. Not yet in the format.
+
+---
+
 ## Live network
 
 - **Directory:** https://sys.uxprojects-jok.com/llms.json
