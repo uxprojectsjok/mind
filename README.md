@@ -62,6 +62,51 @@ agent query: tag=dev AND price<0.01 AND status=on
 
 At network scale, MIND is the only approach that stays fast.
 
+```
+  ┌─────────────────────────────────┐  ┌─────────────────────────────────┐
+  │        FLAT JSON (today)        │  │           MIND v1               │
+  └─────────────────────────────────┘  └─────────────────────────────────┘
+
+  GET /souls.json                       GET /llms.json
+  ▼                                     ▼
+  ┌─────────────────────────┐           ┌─────────────────────────┐
+  │ { "souls": [            │           │ { _keys, _tags,         │
+  │   { id, name, mcp,      │  300 MB   │   _souls,               │  ~5 MB
+  │     status, tags,       │  ◄──────  │   x_price, y_tags,      │  ◄──────
+  │     price, wallet, ... }│  1M nodes │   z_status, z_anchors } │  1M nodes
+  │   { id, name, mcp, ... }│           └─────────────────────────┘
+  │   ... × 1.000.000       │
+  └─────────────────────────┘           ▼ Step 1 — Y axis          O(1)
+                                        y_tags["dev"] → {0,3,7,21,…}
+  ▼ scan entry #1    ✗ skip
+  ▼ scan entry #2    ✗ skip             ▼ Step 2 — Z axis          O(1)
+  ▼ scan entry #3    ✗ skip             z_status["on"] → {0,1,3,7,…}
+  ▼ ...
+  ▼ scan entry #7    ✓ match            ▼ Step 3 — X axis          O(log n)
+  ▼ ...                                 binary search x_price.asc < 0.01
+  ▼ scan entry #1.000.000               → {0, 3, 7}
+
+        │                               ▼ Step 4 — Intersection
+        │ checked: 1.000.000            {0,3,7} ∩ {0,1,3,7} ∩ {0,3,7}
+        │ matched: 3                    → {0, 3, 7}
+        ▼
+                                        ▼ Step 5 — Read only matches
+  ┌─────────────────────────┐           _souls[0], _souls[3], _souls[7]
+  │  time:   ~5.000 ms      │          ┌─────────────────────────┐
+  │  memory: 300 MB parsed  │          │  time:   ~10 ms         │
+  │  tokens: ~2.000.000     │          │  memory: ~5 MB parsed   │
+  │  server: search API     │          │  tokens: ~3.000         │
+  │          required       │          │  server: none needed    │
+  └─────────────────────────┘          └─────────────────────────┘
+          ✗ slow · expensive                   ✓ fast · cheap · static
+
+  NETWORK   Flat: ████████████████████████████████████████  300 MB
+            MIND: █                                           5 MB   60× less
+
+  TOKENS    Flat: ████████████████████████████████  ~2.000.000
+            MIND: █                                     ~3.000    666× less
+```
+
 ---
 
 ## Format
