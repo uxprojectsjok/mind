@@ -537,6 +537,8 @@ MIND was designed for [SaveYourSoul SYS](https://sys.uxprojects-jok.com) — an 
 
 The live MIND directory at https://sys.uxprojects-jok.com/llms.json is the first real-world implementation. The format is protocol-agnostic — any network of nodes with MCP endpoints, on-chain anchoring, or similar discovery mechanisms can publish a MIND-compatible `llms.json`.
 
+**Beyond network discovery:** [`case-study-sys-md.md`](case-study-sys-md.md) documents applying the same 3-axis indexing technique one layer down — to a single node's own long-term memory (`sys.md`'s crystallized LONGMEM), not a network of nodes. Includes before/after evidence from real production data, tool test results, and an honest calibration of what the technique actually buys at that scale.
+
 ---
 
 ## Contributing
