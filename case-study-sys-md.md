@@ -1,5 +1,6 @@
 # Case Study: MIND applied to personal long-term memory (sys.md)
 
+> [!NOTE]
 > MIND was designed for network-level node discovery (`llms.json`). This case
 > study documents applying the same technique — pre-built indexes shipped with
 > the data, filter-per-axis-then-read-only-matches — to a single person's
